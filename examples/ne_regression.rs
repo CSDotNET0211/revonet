@@ -11,7 +11,7 @@ fn main() {
     let problem = SymbolicRegressionProblem::new_f();
 
     let mut ne: NE<SymbolicRegressionProblem> = NE::new(&problem);
-    let res = ne.run(settings).expect("Error: NE result is empty");
+    let res = ne.run(settings,&false).expect("Error: NE result is empty");
     println!("result: {:?}", res);
     println!("\nbest individual: {:?}", res.best);
 }

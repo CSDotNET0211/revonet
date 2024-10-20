@@ -1,7 +1,7 @@
 // use rand;
 use rand::{Rng};
-use rand::distributions::{Normal, IndependentSample};
 use std;
+use rand::distributions::{IndependentSample, Normal};
 
 /// Generates random vector where each element is drawn from the standard Gaussian distribution.
 ///
