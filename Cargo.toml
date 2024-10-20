@@ -7,7 +7,7 @@ description = "Rust implementation of real-coded genetic algorithm for solving o
 repository = "https://github.com/yurytsoy/revonet"
 homepage = "https://github.com/yurytsoy/revonet"
 readme = "README.md"
-
+edition = "2021"
 keywords = ["genetic", "algorithm", "evolutionary", "neural", "neuroevolution"]
 
 
