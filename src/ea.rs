@@ -383,11 +383,6 @@ impl<T: Individual + Clone + Send + 'static + Sync, P: Problem + Sync + Clone + 
 		let mut loop_count = Arc::new(Mutex::new(self.first_to));
 
 		'label: while {
-			if *loop_count.lock().unwrap() >= 30 {
-				println!("30回以上試合することはありえない、強制終了。{} vs {}", self.ind1_win_count.load(SeqCst), self.ind2_win_count.load(SeqCst));
-				break 'label;
-			}
-
 			let mut extra = Arc::new(Mutex::new(0));
 
 			rayon::scope(|scope| {
@@ -417,6 +412,10 @@ impl<T: Individual + Clone + Send + 'static + Sync, P: Problem + Sync + Clone + 
 			*loop_count.lock().unwrap() = *extra.lock().unwrap();
 			//		println!("loop_count:{}", *loop_count.lock().unwrap());
 
+			if self.ind1_win_count.load(SeqCst) + self.ind2_win_count.load(SeqCst) > self.first_to * 2 {
+				println!("30回以上試合することはありえない、強制終了。{} vs {}", self.ind1_win_count.load(SeqCst), self.ind2_win_count.load(SeqCst));
+				break 'label;
+			}
 
 			*loop_count.lock().unwrap() != 0
 		} {}
