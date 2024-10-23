@@ -157,17 +157,19 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 			});
 
 			ctx.population.iter().skip(best_index).take(1).for_each(|ind| {
-				let json = serde_json::to_string(&ind.clone().to_net()).unwrap();
-				let raw_path = format!("genes/gen_{t}.txt");
-				let relative_path = Path::new(&raw_path);
+				if t % 10 == 0 {
+					let json = serde_json::to_string(&ind.clone().to_net()).unwrap();
+					let raw_path = format!("genes/gen_{t}.txt");
+					let relative_path = Path::new(&raw_path);
 
-				if let Some(parent) = relative_path.parent() {
-					std::fs::create_dir_all(parent).unwrap();
+					if let Some(parent) = relative_path.parent() {
+						std::fs::create_dir_all(parent).unwrap();
+					}
+
+					let mut file = File::create(relative_path).unwrap();
+
+					file.write_all(json.as_bytes()).unwrap();
 				}
-
-				let mut file = File::create(relative_path).unwrap();
-
-				file.write_all(json.as_bytes()).unwrap();
 			});
 
 			/*	let _ = ctx.population.iter().map(|ind| {
