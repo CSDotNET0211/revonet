@@ -384,7 +384,7 @@ impl<T: Individual + Clone + Send + 'static + Sync, P: Problem + Sync + Clone + 
 
 		'label: while {
 			if *loop_count.lock().unwrap() >= 30 {
-				println!("30回以上試合することはありえない、強制終了。{} vs {}", *self.ind1_win_count.load(SeqCst), *self.ind2_win_count.load(SeqCst));
+				println!("30回以上試合することはありえない、強制終了。{} vs {}", self.ind1_win_count.load(SeqCst), self.ind2_win_count.load(SeqCst));
 				break 'label;
 			}
 
