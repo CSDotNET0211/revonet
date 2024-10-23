@@ -257,7 +257,7 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 					let test2 = battle.ind2_win_count.load(SeqCst);
 
 					if !(test1 == battle.first_to || test2 == battle.first_to) {
-						panic!();
+						panic!("aaa");
 					}
 
 					if battle.ind1_win_count.load(SeqCst) > battle.ind2_win_count.load(SeqCst) {
@@ -289,7 +289,7 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 
 
 				battle_list = winners;
-				dbg!(battle_list.len());
+				//	dbg!(battle_list.len());
 			}
 
 			ctx.fitness = popul.iter().map(|ref ind| {
@@ -305,14 +305,14 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 
 		let fits = &ctx.fitness;
 		// println!("{:?}", fits);
-		if cur_result.first_hit_fe_count == 0 {
+		/*if cur_result.first_hit_fe_count == 0 {
 			for k in 0..fits.len() {
 				if problem.is_solution(fits[k]) {
 					cur_result.first_hit_fe_count = cur_result.fe_count + (k + 1) as u32;
 					break;
 				}
 			}
-		}
+		}*/
 
 		cur_result.avg_fitness.push(mean(&fits));
 		cur_result.max_fitness.push(max(&fits));
@@ -382,7 +382,12 @@ impl<T: Individual + Clone + Send + 'static + Sync, P: Problem + Sync + Clone + 
 	pub fn compute(&mut self) {
 		let mut loop_count = Arc::new(Mutex::new(self.first_to));
 
-		while {
+		'label: while {
+			if *loop_count.lock().unwrap() >= 30 {
+				println!("30回以上試合することはありえない、強制終了。{} vs {}", *self.ind1_win_count.load(SeqCst), *self.ind2_win_count.load(SeqCst));
+				break 'label;
+			}
+
 			let mut extra = Arc::new(Mutex::new(0));
 
 			rayon::scope(|scope| {
