@@ -120,6 +120,8 @@ impl<T: NeuroProblem> Problem for T {
 	}
 
 	fn compute_battle<I: Individual>(&self, ind1: &mut I, ind2: &mut I) -> (f32, f32) {
+		//	println!("これは大本");
+
 		let fitness;
 		fitness = self.compute_with_net_battle(ind1.to_net_mut().expect("Can not extract mutable ANN"), ind2.to_net_mut().expect("Can not extract mutable ANN"));
 		// match ind.to_net_mut() {
@@ -127,12 +129,20 @@ impl<T: NeuroProblem> Problem for T {
 		//     None => panic!("NN is not defined"),
 		// }; 
 
+
+		if ind1.get_fitness().is_nan() {
+			ind1.set_fitness(0.);
+		}
+		if ind2.get_fitness().is_nan() {
+			ind2.set_fitness(0.);
+		}
+
 		let ind1_fitness = ind1.get_fitness() + fitness.0;
 		let ind2_fitness = ind2.get_fitness() + fitness.1;
 
 		ind1.set_fitness(ind1_fitness);
 		ind2.set_fitness(ind2_fitness);
-		(ind1_fitness, ind2_fitness)
+		(fitness.0, fitness.1)
 	}
 }
 

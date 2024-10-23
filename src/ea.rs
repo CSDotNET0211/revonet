@@ -141,7 +141,9 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 			// println!("next_generation");
 			self.next_generation(ctx, &children);
 
-			println!("> {} : {:?}", t, ctx.fitness);
+			let mut fitness_clone = ctx.fitness.clone();
+			fitness_clone.sort_by(|a, b| b.partial_cmp(a).unwrap());
+			println!("> {} : {:?}", t, &fitness_clone);
 			println!(" Best fitness at generation {} : {}\n", t, min(&ctx.fitness));
 
 			let best_index = ctx.fitness
@@ -204,6 +206,11 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 		if *battle_learning {
 			//対戦する人一覧
 			let mut battle_list: Vec<_> = popul.iter_mut().collect();
+
+			for player in &mut battle_list {
+				player.set_fitness(0.);
+			}
+
 			let mut rng = rand::thread_rng();
 
 			//トーナメント、対戦する人が１になるまで
@@ -243,27 +250,44 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 
 
 					let result: (f32, f32);
+
+					let test1 = battle.ind1_win_count.load(SeqCst);
+					let test2 = battle.ind2_win_count.load(SeqCst);
+
+					if !(test1 == battle.first_to || test2 == battle.first_to) {
+						panic!();
+					}
+
 					if battle.ind1_win_count.load(SeqCst) > battle.ind2_win_count.load(SeqCst) {
-						result = (2., 0.);
+						result = (-2., 0.);
 					} else {
-						result = (0., 2.);
+						result = (0., -2.);
+					}
+
+					if ind1.get_fitness().is_nan() {
+						ind1.set_fitness(0.);
+					}
+					if ind2.get_fitness().is_nan() {
+						ind2.set_fitness(0.);
 					}
 
 					let ind1_fitness = ind1.get_fitness() + result.0;
 					let ind2_fitness = ind2.get_fitness() + result.1;
-					//TODO: なんか２回同じのあるけど何
+
 					ind1.set_fitness(ind1_fitness);
 					ind2.set_fitness(ind2_fitness);
 
 					//勝者
-					if ind1_fitness > ind2_fitness {
+					if ind1_fitness < ind2_fitness {
 						ind1
 					} else {
 						ind2
 					}
 				}).collect();
 
+
 				battle_list = winners;
+				dbg!(battle_list.len());
 			}
 
 			ctx.fitness = popul.iter().map(|ref ind| {
@@ -276,7 +300,7 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 				f
 			}).collect::<Vec<f32>>();
 		}
-		
+
 		let fits = &ctx.fitness;
 		// println!("{:?}", fits);
 		if cur_result.first_hit_fe_count == 0 {
@@ -352,42 +376,86 @@ struct Battle<T: Individual + Clone + Send, P: Problem + Sync> {
 	pub first_to: usize,
 }
 
-impl<T: Individual + Clone + Send + 'static, P: Problem + Sync + Clone + Send + 'static> Battle<T, P> {
+impl<T: Individual + Clone + Send + 'static + Sync, P: Problem + Sync + Clone + Send + 'static> Battle<T, P> {
 	pub fn compute(&mut self) {
-		//先に回数分実行
-		for _ in 0..self.first_to {
-			let ind1 = self.ind1.clone();
-			let ind2 = self.ind2.clone();
-			let problem = self.problem.clone();
-			let ind1_win_count = self.ind1_win_count.clone();
-			let ind2_win_count = self.ind2_win_count.clone();
-			let first_to = self.first_to;
-			let total_battle_count = self.total_battle_count.clone();
+		let mut loop_count = Arc::new(Mutex::new(self.first_to));
 
-			rayon::spawn(move || {
-				Self::internal(ind1, ind2, problem, ind1_win_count, ind2_win_count, first_to, total_battle_count);
+		while {
+			let mut extra = Arc::new(Mutex::new(0));
+
+			rayon::scope(|scope| {
+				self.total_battle_count.fetch_add(*loop_count.lock().unwrap(), SeqCst);
+
+				while *loop_count.lock().unwrap() > 0 {
+					let ind1 = self.ind1.clone();
+					let ind2 = self.ind2.clone();
+					let problem = self.problem.clone();
+					let ind1_win_count = self.ind1_win_count.clone();
+					let ind2_win_count = self.ind2_win_count.clone();
+					let first_to = self.first_to;
+					let total_battle_count = self.total_battle_count.clone();
+
+					//		let extra = Arc::new(Mutex::new(0usize));
+					let extra_clone = extra.clone();
+					scope.spawn(move |_| {
+						Self::internal(ind1, ind2, problem, ind1_win_count, ind2_win_count, first_to, total_battle_count, extra_clone);
+					});
+					//		*loop_count.lock().unwrap() += *extra.lock().unwrap();
+
+					*loop_count.lock().unwrap() -= 1;
+				}
 			});
-		}
+			//		println!("extra:{}", *extra.lock().unwrap());
+
+			*loop_count.lock().unwrap() = *extra.lock().unwrap();
+			//		println!("loop_count:{}", *loop_count.lock().unwrap());
+
+
+			*loop_count.lock().unwrap() != 0
+		} {}
 	}
 
-	fn internal(mut ind1: T, mut ind2: T, problem: P, ind1_win_count: Arc<AtomicUsize>, ind2_win_count: Arc<AtomicUsize>, first_to: usize, total_battle_count: Arc<AtomicUsize>) {
+	fn internal(mut ind1: T, mut ind2: T, problem: P, ind1_win_count: Arc<AtomicUsize>, ind2_win_count: Arc<AtomicUsize>, first_to: usize, total_battle_count: Arc<AtomicUsize>, extra: Arc<Mutex<usize>>) {
+		//	println!("ゲーム開始");
+
 		let f = problem.compute_battle(&mut ind1, &mut ind2);
+		assert_eq!(f.0 + f.1, 1.);
+
 		ind1_win_count.fetch_add(f.0 as usize, SeqCst);
 		ind2_win_count.fetch_add(f.1 as usize, SeqCst);
+		//dbg!(f);
+
 
 		let ind1_win = ind1_win_count.load(SeqCst);
 		let ind2_win = ind2_win_count.load(SeqCst);
+		let total_battle = total_battle_count.load(SeqCst);
 
-		if ind1_win + ind2_win == total_battle_count.load(SeqCst) {
+		/*if ind1_win == first_to || ind2_win == first_to {
+			println!("a");
+		}*/
+		//	println!("{} vs {} :{}", ind1_win, ind2_win, total_battle);
+
+
+		if ind1_win + ind2_win == total_battle {
 			if ind1_win == first_to || ind2_win == first_to {
+				//		println!("終わり");
 				//終わり
 			} else {
+
 				//終わった数と予定の数が同じ試合が全部終わった時、まだftに達してなかったら
 
+				//1じゃなくても、first_to - デカいほうでいける
+				let game_needed;
+				if ind1_win > ind2_win {
+					game_needed = first_to - ind1_win;
+				} else {
+					game_needed = first_to - ind2_win;
+				}
 
-				rayon::spawn(move || {
-					Self::internal(ind1.clone(), ind2.clone(), problem.clone(), ind1_win_count, ind2_win_count, first_to, total_battle_count);
-				});
+				//	println!("足りないからまだ生成:{}", game_needed);
+				//	println!("ind1:{}, ind2:{}, total:{}", ind1_win, ind2_win, total_battle);
+
+				*extra.lock().unwrap() += game_needed;
 			}
 		}
 	}
