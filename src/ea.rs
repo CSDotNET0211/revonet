@@ -453,10 +453,17 @@ impl<T: Individual + Clone + Send + 'static + Sync, P: Problem + Sync + Clone + 
 				//1じゃなくても、first_to - デカいほうでいける
 				let game_needed;
 				if ind1_win > ind2_win {
-					game_needed = first_to - ind1_win;
+					game_needed = first_to.saturating_sub(ind1_win);
+					if (first_to as isize - ind1_win as isize) < 0 {
+						println!("ゲームやりすぎ？ {} vs {}", first_to, ind1_win);
+					}
 				} else {
-					game_needed = first_to - ind2_win;
+					game_needed = first_to.saturating_sub(ind2_win);
+					if (first_to as isize - ind2_win as isize) < 0 {
+						println!("ゲームやりすぎ？ {} vs {}", first_to, ind2_win);
+					}
 				}
+
 
 				//	println!("足りないからまだ生成:{}", game_needed);
 				//	println!("ind1:{}, ind2:{}, total:{}", ind1_win, ind2_win, total_battle);
