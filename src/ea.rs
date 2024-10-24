@@ -257,7 +257,7 @@ pub trait EA<'a, P> where P: Problem + Sync + Send + Clone + 'static, {
 					let test2 = battle.ind2_win_count.load(SeqCst);
 
 					if !(test1 == battle.first_to || test2 == battle.first_to) {
-						panic!("aaa");
+						//panic!("ゲームやりすぎ");
 					}
 
 					if battle.ind1_win_count.load(SeqCst) > battle.ind2_win_count.load(SeqCst) {
